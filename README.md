@@ -4,6 +4,8 @@ Flutter + Firebase доска объявлений в стиле PUSHKA.
 
 ## Current State
 
+- Version 1.0.1 (5): private on-device inspection notebook, six-step inspection worksheet, notes and side-by-side comparison of 2–3 classified listings. Available without sign-in; no cloud sync. Up to ten saved listing snapshots; prices must be reconfirmed with the author.
+
 - App brand: `PUSHKA`
 - Platforms: Android, iOS, Web
 - Backend: Firebase project `pushkaapp-f4e4f`

@@ -179,13 +179,16 @@ void main() {
     expect(pasted.text, '+7 (705) 353-45-34');
   });
 
-  testWidgets('guest sees OLX-style classifieds home', (tester) async {
+  testWidgets('guest sees classifieds home and inspection notebook', (tester) async {
     await pumpClassifieds(tester);
 
     expect(find.text('PUSHKA'), findsWidgets);
     expect(find.text('Главная'), findsWidgets);
     expect(find.text('Категории'), findsWidgets);
     expect(find.text('Добавить'), findsWidgets);
+    expect(find.text('Мой блокнот осмотров'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('ТОП объявления'), 250,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('ТОП объявления'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Свежие объявления'),

@@ -21,6 +21,8 @@ import 'local_preferences.dart';
 import 'payment_view.dart';
 import 'web_image_picker.dart';
 
+part 'inspection_notebook.dart';
+
 extension FirstOrNullExtension<T> on Iterable<T> {
   T? get firstOrNullC => isEmpty ? null : first;
 }
@@ -4325,6 +4327,43 @@ class ClassifiedsHomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
+          CGlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  store.tx(
+                    'Вещи от людей рядом',
+                    'Жақындағы адамдардың заттары',
+                  ),
+                  style: const TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  store.tx(
+                    'Выберите объявление, сравните варианты и подготовьте осмотр перед личной сделкой.',
+                    'Хабарландыруды таңдап, нұсқаларды салыстырыңыз және жеке мәміле алдында тексеруге дайындалыңыз.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const InspectionNotebookScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: Text(
+                    store.tx('Мой блокнот осмотров', 'Тексеру дәптерім'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           TextField(
             onChanged: store.setSearch,
             decoration: InputDecoration(
@@ -4413,8 +4452,8 @@ class UserBannersCarousel extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: banner?.imageUrl.isNotEmpty == true
-                ? CNetworkOrAssetImage(banner!.imageUrl, fit: BoxFit.cover)
+            child: banner.imageUrl.isNotEmpty
+                ? CNetworkOrAssetImage(banner.imageUrl, fit: BoxFit.cover)
                 : const Center(
                     child: Icon(Icons.image_outlined, color: cBlue, size: 34),
                   ),
@@ -5398,6 +5437,23 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                   value: '${listing.favoriteCount}',
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            key: const ValueKey('prepareInspection'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    InspectionNotebookScreen(initialListing: listing),
+              ),
+            ),
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(
+              store.tx(
+                'Подготовить осмотр и сравнить',
+                'Тексеруге дайындалып, салыстыру',
+              ),
             ),
           ),
           const SizedBox(height: 12),

@@ -7,7 +7,7 @@
 - Verified: 15 Flutter tests, clean static analysis, browser checks at phone and iPad sizes, signed IPA archive/export with version 1.0.1 and build 5.
 - New iPhone/iPad screenshots and app description saved in App Store Connect; factual response to 4.3/4.2.6 sent. Detailed response: `APP_REVIEW_1.0.1.md`.
 - Existing signing material and reviewer account retained outside Git. No passwords or signing keys are stored in the repository.
-- IPA upload succeeded without errors, delivery UUID `085fdd28-d4e8-4dd6-8056-7b1c8fb133c6`. App Store Connect shows version 1.0.1 build 5 as Processing after more than 30 minutes. The old build 4 has been detached. Final review resubmission has NOT been completed: select build 5 once Apple processing finishes, answer any required compliance questions, update the review item and resubmit. Do not submit an old binary.
+- IPA upload succeeded without errors, delivery UUID `085fdd28-d4e8-4dd6-8056-7b1c8fb133c6`. On 2026-10-22, version 1.0.1 build 5 was selected and resubmitted to App Review. App Store Connect confirms Waiting for Review (Ожидание проверки), submission `ab25beaa-fcf5-495c-b9b6-55facdace32f`. Automatic release after approval remains enabled. Evidence: local `output/apple-1.0.1-submitted.png`.
 
 ## Firebase
 

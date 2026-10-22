@@ -1,5 +1,13 @@
 # PUSHKA Production Checklist
 
+## 1.0.1 (5), 22 October 2026
+
+- Private source repository: https://github.com/milaniumkz/pushka
+- Added a local inspection notebook: up to ten listing snapshots or manually entered personal items, six inspection checks, private notes and comparison of two or three candidates. Guest access; no cloud transmission of notebook data.
+- Verified: 15 Flutter tests, clean static analysis, browser checks at phone and iPad sizes, signed IPA archive/export with version 1.0.1 and build 5.
+- New iPhone/iPad screenshots and app description saved in App Store Connect; factual response to 4.3/4.2.6 sent. Detailed response: `APP_REVIEW_1.0.1.md`.
+- Existing signing material and reviewer account retained outside Git. No passwords or signing keys are stored in the repository.
+
 ## Firebase
 
 - Project: `pushkaapp-f4e4f`

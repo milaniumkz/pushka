@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "568304683655",
+    "project_id": "pushkaapp-f4e4f",
+    "storage_bucket": "pushkaapp-f4e4f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568304683655:android:976d3a73972bb490704622",
+        "android_client_info": {
+          "package_name": "com.shop.popod.shop_popod"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBF22_3S0Y5Z53sZ4E0Q0VUqJZnF8DBP60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

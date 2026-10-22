@@ -1,0 +1,24 @@
+[
+  {
+    "origin": [
+      "https://pushkaapp-f4e4f.web.app",
+      "https://pushka-admin-f4e4f.web.app",
+      "http://localhost:5000",
+      "http://localhost:53217",
+      "http://127.0.0.1:53217"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "x-goog-resumable",
+      "x-goog-upload-command",
+      "x-goog-upload-header-content-length",
+      "x-goog-upload-header-content-type",
+      "x-goog-upload-protocol",
+      "x-goog-upload-url",
+      "x-firebase-storage-version"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

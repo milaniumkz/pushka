@@ -1,0 +1,21 @@
+{
+  "projects": {
+    "default": "pushkaapp-f4e4f"
+  },
+  "targets": {
+    "pushkaapp-f4e4f": {
+      "hosting": {
+        "admin": [
+          "pushka-admin-f4e4f"
+        ],
+        "app": [
+          "pushkaapp-f4e4f"
+        ],
+        "support": [
+          "pushka-help-f4e4f"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

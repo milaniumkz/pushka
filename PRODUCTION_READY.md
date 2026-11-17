@@ -3,7 +3,7 @@
 ## 1.0.2 (6), 17 November 2026
 
 - Built signed Android and iOS packages from `c1a4fcd`. All 15 Flutter tests passed; static analysis found no issues.
-- Google Play accepted AAB `6 (1.0.2)` in the production release. It is saved but not yet submitted: Google flagged an incomplete app-level trader status declaration.
+- Google Play confirms production release `6 (1.0.2)` and the app-level trader declaration are under review. The account holder confirmed that the account's trader status does not apply to PUSHKA. Full rollout is configured after approval.
 - App Store Connect version 1.0.2 is prepared. IPA upload succeeded, delivery `cd1c4fb5-a17c-4d04-8c57-a0d91f4549ea`. Build 6 is processing and has not been submitted to App Review.
 
 ## 1.0.1 (5), 22 October 2026

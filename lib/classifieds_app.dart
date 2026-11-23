@@ -5846,7 +5846,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                             final images = await ImagePicker().pickMultiImage(
                               imageQuality: 82,
                             );
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             setState(() {
                               pickedImages.addAll(images.take(remaining));
                             });
@@ -5858,7 +5858,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                               );
                             }
                           } catch (_) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(

@@ -787,7 +787,7 @@ async function moderateContent(input: {
       "Проверяй по правилам сервиса и законодательству Республики Казахстан.",
       "Запрещай: оружие, боеприпасы, взрывчатые вещества, наркотические/психотропные вещества, алкоголь, табак, вейпы, насвай, рецептурные лекарства и опасные медтовары, человеческие биоматериалы, документы/печати/штампы, персональные базы данных, SIM/аккаунты с чужими данными, контрафакт, поддельные товары и деньги, интим/эскорт/18+, незаконные услуги, азартные игры/ставки/казино, финансовые пирамиды, обнал/отмывание, мошенничество, фишинг, просьбы SMS-кодов/CVV/паролей, угрозы, оскорбления, дискриминацию, спам.",
       "Не отклоняй легальные бытовые услуги только из-за слова массаж. Фразы вроде профессиональный массаж, лечебный массаж, спортивный массаж, без интима допустимы, если нет сексуального контекста, эскорта, 18+, проституции или явных интим-услуг.",
-      "Если категория явно не соответствует содержанию, отклоняй сразу с причиной Неверная категория и укажи правильную категорию.",
+      "categoryId — технический идентификатор категории из каталога, проверенный сервером. Не определяй категорию по идентификатору или отдельным словам текста и не отклоняй объявление за несовпадение категории. Проверку запрещенного содержания выполняй независимо от категории.",
       "Верни только JSON без markdown.",
       "Схема: {\"decision\":\"approved|rejected|needs_owner_review\",\"reason\":{\"ru\":\"...\",\"kk\":\"...\"},\"riskScore\":0,\"flags\":[\"...\"]}.",
       "В reason нельзя упоминать AI, нейросеть, модель или автоматическую проверку. Пиши как обычная служба модерации приложения.",
@@ -949,52 +949,6 @@ async function assertValidListingCategory(categoryId: string): Promise<void> {
   if (!foundSubcategory) {
     throw new HttpsError("invalid-argument", "category_invalid");
   }
-}
-
-async function rootListingCategoryId(categoryId: string): Promise<string> {
-  const cleanCategoryId = cleanText(categoryId, 80);
-  const directSnap = await db.collection("listingCategories").doc(cleanCategoryId).get();
-  if (directSnap.exists) {
-    return cleanCategoryId;
-  }
-  const allCategories = await db.collection("listingCategories").get();
-  const parent = allCategories.docs.find((doc) => {
-    const subcategories = Array.isArray(doc.data().subcategories)
-      ? doc.data().subcategories
-      : [];
-    return subcategories.some((item: FirebaseFirestore.DocumentData) => String(item?.id ?? "") === cleanCategoryId);
-  });
-  return parent?.id ?? cleanCategoryId;
-}
-
-function categoryMismatchModeration(params: {
-  title: string;
-  description: string;
-  rootCategoryId: string;
-}): AiModerationResult | null {
-  const raw = `${params.title} ${params.description}`.toLowerCase().replace(/ё/g, "е");
-  const text = raw.replace(/[^a-zа-я0-9]+/g, " ");
-  const rules = [
-    { root: "services", labelRu: "Услуги", labelKk: "Қызметтер", words: ["массаж", "маникюр", "педикюр", "ресниц", "бров", "стрижк", "ремонт", "уборк", "доставк", "юрист", "репетитор", "обучен"] },
-    { root: "electronics", labelRu: "Электроника", labelKk: "Электроника", words: ["телефон", "смартфон", "samsung", "iphone", "xiaomi", "ноутбук", "компьютер", "планшет", "телевизор"] },
-    { root: "transport", labelRu: "Транспорт", labelKk: "Көлік", words: ["авто", "машин", "toyota", "hyundai", "kia", "bmw", "mercedes", "мото", "скутер"] },
-    { root: "real_estate", labelRu: "Недвижимость", labelKk: "Жылжымайтын мүлік", words: ["квартир", "дом", "участок", "офис", "комнат", "аренда", "продам жилье"] },
-    { root: "jobs", labelRu: "Работа", labelKk: "Жұмыс", words: ["ваканси", "работа", "зарплат", "требуется", "резюме"] },
-  ];
-  const matched = rules.find((rule) => rule.words.some((word) => text.includes(word)));
-  if (!matched || matched.root === params.rootCategoryId) {
-    return null;
-  }
-  return {
-    decision: "rejected",
-    reason: {
-      ru: `Неверная категория: для этого объявления выберите категорию «${matched.labelRu}».`,
-      kk: `Қате санат: бұл хабарландыру үшін «${matched.labelKk}» санатын таңдаңыз.`,
-    },
-    riskScore: 0.3,
-    flags: ["category_mismatch"],
-    provider: "heuristic",
-  };
 }
 
 function makeOtpCode(): string {
@@ -1797,9 +1751,7 @@ export const createListing = onCall<CreateListingInput>(async (request) => {
   assertStorageUrlsForUser(images, uid, ["listingImages"]);
   await assertValidListingCategory(categoryId);
   await assertValidLocation(regionId, city);
-  const rootCategoryId = await rootListingCategoryId(categoryId);
   const canSkipModeration = request.data.skipModeration === true && (user.role === "owner" || user.role === "admin");
-  const mismatchResult = canSkipModeration ? null : categoryMismatchModeration({ title, description, rootCategoryId });
   const result: AiModerationResult = canSkipModeration ? {
     decision: "approved",
     reason: {
@@ -1809,7 +1761,7 @@ export const createListing = onCall<CreateListingInput>(async (request) => {
     riskScore: 0,
     flags: [],
     provider: "owner",
-  } : mismatchResult ?? applyModerationSettings(await moderateContent({
+  } : applyModerationSettings(await moderateContent({
     targetType: "listing",
     title,
     description,
@@ -1902,9 +1854,7 @@ export const updateListing = onCall<UpdateListingInput>(async (request) => {
   const description = cleanText(request.data.description);
   await assertValidListingCategory(categoryId);
   await assertValidLocation(cleanText(request.data.regionId, 120), cleanText(request.data.city, 80));
-  const rootCategoryId = await rootListingCategoryId(categoryId);
-  const mismatchResult = categoryMismatchModeration({ title, description, rootCategoryId });
-  const result = mismatchResult ?? applyModerationSettings(await moderateContent({
+  const result = applyModerationSettings(await moderateContent({
     targetType: "listing",
     title,
     description,

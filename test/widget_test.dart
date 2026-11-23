@@ -259,6 +259,47 @@ void main() {
     expect(risky.status, ListingStatus.rejected);
   });
 
+  for (final sample in [
+    ('iphone', 'iPhone после ремонта',
+      'Телефон полностью исправен. Работает хорошо, зарядка в комплекте.'),
+    ('sofa', 'Диван для дома',
+      'Хорошее состояние. Для связи используйте телефон в профиле.'),
+  ]) {
+    testWidgets('valid category allows editing: ${sample.$2}', (tester) async {
+      final store = seededTestStore()
+        ..isAuthorized = true
+        ..userId = 'seller_1'
+        ..phone = '+7 (777) 111-22-33';
+      final listing = store.listings.firstWhere((item) => item.id == sample.$1)
+        ..title = sample.$2
+        ..description = sample.$3
+        ..images = [];
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ClassifiedsScope(
+          controller: store,
+          child: MaterialApp(
+            home: Scaffold(
+              body: CreateListingScreen(editingListing: listing),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final save = find.widgetWithText(FilledButton, 'Сохранить изменения');
+      await tester.scrollUntilVisible(
+        save, 300, scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Объявление обновлено'), findsOneWidget);
+      expect(listing.status, ListingStatus.ownerReview);
+      expect(listing.categoryId, sample.$1 == 'iphone' ? 'phones' : 'home');
+    });
+  }
+
   test('banner pending payment status is not active', () {
     final status = statusFromString('pending_payment');
 

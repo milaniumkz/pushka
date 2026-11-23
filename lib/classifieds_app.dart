@@ -5536,6 +5536,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   bool saving = false;
   String moderationMessage = '';
   final fieldErrors = <String, String>{};
+  bool pickingImages = false;
+  static const maxImages = 8;
   final pickedImages = <XFile>[];
   final imageUrls = <String>[];
 
@@ -5569,60 +5571,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   String? _clientCategoryMismatch(ClassifiedsStore store) {
-    final text = '${title.text} ${description.text}'.toLowerCase();
-    final rootId = store.rootCategoryId(
-      subcategoryId.isEmpty ? categoryId : subcategoryId,
+    final selectedId = subcategoryId.isEmpty ? categoryId : subcategoryId;
+    final valid = store.categories.any(
+      (category) =>
+          category.id != 'all' &&
+          (category.id == selectedId ||
+              category.subcategories.any((item) => item.id == selectedId)),
     );
-    final rules = <({String root, String label, List<String> words})>[
-      (
-        root: 'services',
-        label: 'Услуги',
-        words: [
-          'массаж',
-          'маникюр',
-          'педикюр',
-          'ресниц',
-          'стриж',
-          'ремонт',
-          'уборк',
-          'юрист',
-          'репетитор',
-        ],
-      ),
-      (
-        root: 'electronics',
-        label: 'Электроника',
-        words: [
-          'телефон',
-          'смартфон',
-          'samsung',
-          'iphone',
-          'ноутбук',
-          'планшет',
-        ],
-      ),
-      (
-        root: 'transport',
-        label: 'Транспорт',
-        words: ['авто', 'машин', 'toyota', 'hyundai', 'kia', 'bmw', 'мото'],
-      ),
-      (
-        root: 'real_estate',
-        label: 'Недвижимость',
-        words: ['квартир', 'дом', 'участок', 'офис', 'комнат'],
-      ),
-      (
-        root: 'jobs',
-        label: 'Работа',
-        words: ['ваканси', 'работа', 'зарплат', 'требуется'],
-      ),
-    ];
-    for (final rule in rules) {
-      if (rule.words.any(text.contains) && rootId != rule.root) {
-        return 'Неверная категория: для этого объявления выберите категорию «${rule.label}».';
-      }
-    }
-    return null;
+    return valid ? null : 'Выберите доступную категорию объявления.';
   }
 
   void _showModerationIssue(String reason) {
@@ -5872,20 +5828,46 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 ),
                 const SizedBox(height: 14),
                 OutlinedButton.icon(
-                  onPressed: saving
+                  onPressed: saving || pickingImages ||
+                          pickedImages.length + imageUrls.length >= maxImages
                       ? null
                       : () async {
-                          final image = await ImagePicker().pickImage(
-                            source: ImageSource.gallery,
-                            imageQuality: 82,
-                          );
-                          if (image != null && mounted) {
-                            setState(() => pickedImages.add(image));
+                          final remaining = maxImages -
+                              imageUrls.length - pickedImages.length;
+                          setState(() => pickingImages = true);
+                          try {
+                            final images = await ImagePicker().pickMultiImage(
+                              imageQuality: 82,
+                            );
+                            if (!mounted) return;
+                            setState(() {
+                              pickedImages.addAll(images.take(remaining));
+                            });
+                            if (images.length > remaining) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Можно добавить до 8 фотографий.'),
+                                ),
+                              );
+                            }
+                          } catch (_) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Не удалось открыть фотографии. Попробуйте ещё раз.',
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => pickingImages = false);
+                            }
                           }
                         },
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                   label: Text(
-                    'Фото (${pickedImages.length + imageUrls.length}/8)',
+                    'Фото (${pickedImages.length + imageUrls.length}/$maxImages)',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -5903,7 +5885,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   const SizedBox(height: 14),
                 ],
                 FilledButton.icon(
-                  onPressed: saving
+                  onPressed: saving || pickingImages
                       ? null
                       : () async {
                           if (title.text.trim().isEmpty ||

@@ -296,7 +296,7 @@ void main() {
 
       expect(find.text('Объявление обновлено'), findsOneWidget);
       expect(listing.status, ListingStatus.ownerReview);
-      expect(listing.categoryId, sample.$1 == 'iphone' ? 'phones' : 'home');
+      expect(listing.categoryId, sample.$1 == 'iphone' ? 'electronics' : 'home');
     });
   }
 

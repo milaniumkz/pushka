@@ -5629,6 +5629,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         subcategoryId = widget.editingListing?.categoryId ?? subcategoryId;
       }
     }
+    final currentCategory = store.categories
+        .where((item) => item.id == categoryId)
+        .firstOrNullC;
+    if (currentCategory != null &&
+        !currentCategory.subcategories.any((item) => item.id == subcategoryId)) {
+      subcategoryId = '';
+    }
     if (!store.isAuthorized) {
       return AuthRequiredPane(
         title: store.tx(

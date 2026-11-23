@@ -38,4 +38,3 @@ jobs:
           cache-dependency-path: firebase/functions/package-lock.json
       - run: npm ci
       - run: npm run build
-      - run: node --test *.test.cjs

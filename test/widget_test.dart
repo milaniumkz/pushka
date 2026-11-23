@@ -288,9 +288,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       final save = find.widgetWithText(FilledButton, 'Сохранить изменения');
-      await tester.scrollUntilVisible(
-        save, 300, scrollable: find.byType(Scrollable).first,
-      );
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
       await tester.tap(save);
       await tester.pumpAndSettle();
 

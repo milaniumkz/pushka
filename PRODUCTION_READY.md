@@ -1,5 +1,13 @@
 # PUSHKA Production Checklist
 
+## 1.0.3 (7), 25 November 2026
+
+- Integrated `fix/listing-category-and-multiple-photos` into main. The listing gallery supports one multi-image selection, with an eight-photo total limit. Valid category IDs are checked against the catalog rather than rejected by incidental text keywords.
+- Verified 18 Flutter tests and clean static analysis. A dedicated widget test selects three photos once, uploads all three and saves them on the listing. Firebase Functions TypeScript compilation passed.
+- Deployed `createListing` and `updateListing` to production. A real reviewer-account check uploaded three images, created an active listing, read back all three persisted URLs, and archived the test listing immediately afterward.
+- Google Play production release 1.0.3 (7) is submitted; the console confirms changes under review, with full rollout configured after approval. Local evidence: `output/play-1.0.3-submitted.png`.
+- Apple accepted the signed IPA, delivery `be6f4844-cd06-4606-a7e8-f8e39efa2e6c`. Version 1.0.3 metadata is saved; build 7 is processing and not yet submitted to App Review.
+
 ## 1.0.2 (6), 17 November 2026
 
 - Built signed Android and iOS packages from `c1a4fcd`. All 15 Flutter tests passed; static analysis found no issues.

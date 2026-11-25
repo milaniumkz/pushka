@@ -6,7 +6,7 @@
 - Verified 18 Flutter tests and clean static analysis. A dedicated widget test selects three photos once, uploads all three and saves them on the listing. Firebase Functions TypeScript compilation passed.
 - Deployed `createListing` and `updateListing` to production. A real reviewer-account check uploaded three images, created an active listing, read back all three persisted URLs, and archived the test listing immediately afterward.
 - Google Play production release 1.0.3 (7) is submitted; the console confirms changes under review, with full rollout configured after approval. Local evidence: `output/play-1.0.3-submitted.png`.
-- Apple accepted the signed IPA, delivery `be6f4844-cd06-4606-a7e8-f8e39efa2e6c`. Version 1.0.3 metadata is saved; build 7 is processing and not yet submitted to App Review.
+- Apple accepted the signed IPA, delivery `be6f4844-cd06-4606-a7e8-f8e39efa2e6c`. Processing is complete. Version 1.0.3 metadata is saved; build 7 awaits action-time confirmation of its export declaration (standard encryption, no France distribution), then selection and App Review submission.
 
 ## 1.0.2 (6), 17 November 2026
 

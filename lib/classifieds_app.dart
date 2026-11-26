@@ -5450,7 +5450,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       tracked = true;
       final store = ClassifiedsScope.of(context);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(store.trackListingView(widget.listingId));
+        if (mounted) store.trackListingView(widget.listingId);
       });
     }
   }

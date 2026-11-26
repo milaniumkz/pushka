@@ -9,6 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -1579,8 +1580,8 @@ class ClassifiedsStore extends ChangeNotifier {
     );
   }
 
-  ListingAd listingFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data();
+  ListingAd listingFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
     final createdAt = data['createdAt'];
     final boostUntil = data['boostUntil'];
     final topUntil = data['topUntil'];
@@ -5442,6 +5443,9 @@ class ListingDetailsScreen extends StatefulWidget {
 
 class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   bool tracked = false;
+  ListingAd? _liveListing;
+  bool _listingUnavailable = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _listingSubscription;
 
   @override
   void didChangeDependencies() {
@@ -5449,6 +5453,36 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     if (!tracked) {
       tracked = true;
       final store = ClassifiedsScope.of(context);
+      if (!store.allowLocalFallback) {
+        _liveListing = store.listings
+            .where((item) => item.id == widget.listingId)
+            .firstOrNullC;
+        _listingSubscription = FirebaseFirestore.instance
+            .collection('listings')
+            .doc(widget.listingId)
+            .snapshots()
+            .listen((snapshot) {
+          if (!mounted || (!snapshot.exists && snapshot.metadata.isFromCache)) return;
+          final item = snapshot.exists ? store.listingFromDoc(snapshot) : null;
+          final accessible = item != null &&
+              (item.status == ListingStatus.active ||
+                  item.ownerId == store.userId || store.isOwner);
+          setState(() {
+            _liveListing = accessible ? item : null;
+            _listingUnavailable = !accessible;
+          });
+        }, onError: (Object error) {
+          if (!mounted) return;
+          if (error is FirebaseException &&
+              (error.code == 'permission-denied' || error.code == 'not-found')) {
+            setState(() {
+              _liveListing = null;
+              _listingUnavailable = true;
+            });
+          }
+          // Retain the cached card during temporary connection failures.
+        });
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) store.trackListingView(widget.listingId);
       });
@@ -5456,11 +5490,18 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   }
 
   @override
+  void dispose() {
+    unawaited(_listingSubscription?.cancel());
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = ClassifiedsScope.of(context);
-    final listing = store.listings
+    final cachedListing = store.listings
         .where((item) => item.id == widget.listingId)
         .firstOrNullC;
+    final listing = _listingUnavailable ? null : (_liveListing ?? cachedListing);
     if (listing == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Объявление')),

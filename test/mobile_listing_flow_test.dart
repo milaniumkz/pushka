@@ -187,7 +187,7 @@ void main() {
   testWidgets('multiple picked photos can be removed and replaced at the limit', (tester) async {
     late Directory directory;
     final png = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ8sAAAAASUVORK5CYII=',
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR4AQEFAPr/AP////8J+wP9o9FJCgAAAABJRU5ErkJggg==',
     );
     final paths = <String>[];
     await tester.runAsync(() async {

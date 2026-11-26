@@ -869,6 +869,13 @@ class ClassifiedsStore extends ChangeNotifier {
   String? pendingOtpCode;
   String? pendingPromotionPaymentId;
   StreamSubscription<String>? fcmTokenRefreshSubscription;
+  StreamSubscription<List<ListingAd>>? _publicListingsSubscription;
+  StreamSubscription<List<ListingAd>>? _ownListingsSubscription;
+  final _publicListingSnapshot = <String, ListingAd>{};
+  final _ownListingSnapshot = <String, ListingAd>{};
+  String? _listingSyncKey;
+  int _listingSyncGeneration = 0;
+  bool _listingSyncDisposed = false;
   final categories = <ListingCategory>[];
   final locations = <ListingLocation>[];
   final listings = <ListingAd>[];
@@ -1057,6 +1064,7 @@ class ClassifiedsStore extends ChangeNotifier {
       city = '${data['city'] ?? city}';
       selectedCity = city.isEmpty ? selectedCity : city;
       isOwner = data['role'] == 'owner' || data['role'] == 'admin';
+      startListingSync();
       needsProfileCompletion =
           !isOwner &&
           (userName.trim().isEmpty ||
@@ -1107,8 +1115,107 @@ class ClassifiedsStore extends ChangeNotifier {
     }
   }
 
+  void startListingSync() {
+    if (allowLocalFallback || _listingSyncDisposed) return;
+    final key = '$isOwner:${isAuthorized ? userId : 'guest'}';
+    if (_listingSyncKey == key) return;
+    try {
+      final db = FirebaseFirestore.instance;
+      final all = db.collection('listings')
+          .orderBy('createdAt', descending: true)
+          .limit(isOwner ? 200 : 80);
+      final publicQuery = isOwner
+          ? all
+          : all.where('status', isEqualTo: 'active');
+      final ownQuery = isAuthorized
+          ? db.collection('listings')
+              .where('ownerId', isEqualTo: userId)
+              .orderBy('createdAt', descending: true)
+              .limit(100)
+          : null;
+      watchListingFeeds(
+        publicFeed: publicQuery.snapshots().map(
+          (snapshot) => snapshot.docs.map(listingFromDoc).toList(),
+        ),
+        ownFeed: ownQuery?.snapshots().map(
+          (snapshot) => snapshot.docs.map(listingFromDoc).toList(),
+        ),
+      );
+      _listingSyncKey = key;
+    } catch (error) {
+      debugPrint('Listing sync startup failed: $error');
+    }
+  }
+
+  void watchListingFeeds({
+    required Stream<List<ListingAd>> publicFeed,
+    Stream<List<ListingAd>>? ownFeed,
+  }) {
+    if (_listingSyncDisposed) return;
+    _cancelListingFeeds();
+    final generation = _listingSyncGeneration;
+    _publicListingSnapshot
+      ..clear()
+      ..addEntries(listings
+          .where((item) => item.status == ListingStatus.active)
+          .map((item) => MapEntry(item.id, item)));
+    _ownListingSnapshot
+      ..clear()
+      ..addEntries(ownFeed == null
+          ? const <MapEntry<String, ListingAd>>[]
+          : listings.where((item) => item.ownerId == userId)
+              .map((item) => MapEntry(item.id, item)));
+    void onError(Object error) {
+      if (generation != _listingSyncGeneration || _listingSyncDisposed) return;
+      // Keep the last snapshot visible while Firestore reconnects.
+      firebaseLoadError = '$error';
+      notifyListeners();
+    }
+    _mergeListingSnapshots();
+    _publicListingsSubscription = publicFeed.listen((items) {
+      if (generation != _listingSyncGeneration || _listingSyncDisposed) return;
+      _publicListingSnapshot
+        ..clear()
+        ..addEntries(items.map((item) => MapEntry(item.id, item)));
+      _mergeListingSnapshots();
+    }, onError: onError);
+    _ownListingsSubscription = ownFeed?.listen((items) {
+      if (generation != _listingSyncGeneration || _listingSyncDisposed) return;
+      _ownListingSnapshot
+        ..clear()
+        ..addEntries(items.where((item) => item.ownerId == userId)
+            .map((item) => MapEntry(item.id, item)));
+      _mergeListingSnapshots();
+    }, onError: onError);
+  }
+
+  void _mergeListingSnapshots() {
+    final merged = <String, ListingAd>{
+      ..._publicListingSnapshot,
+      ..._ownListingSnapshot,
+    };
+    listings
+      ..clear()
+      ..addAll(merged.values);
+    listings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    firebaseLoadError = '';
+    notifyListeners();
+  }
+
+  void _cancelListingFeeds() {
+    _listingSyncGeneration++;
+    _listingSyncKey = null;
+    unawaited(_publicListingsSubscription?.cancel());
+    unawaited(_ownListingsSubscription?.cancel());
+    _publicListingsSubscription = null;
+    _ownListingsSubscription = null;
+    _publicListingSnapshot.clear();
+    _ownListingSnapshot.clear();
+  }
+
   Future<void> loadFromFirebase() async {
     if (demoAuthenticationEnabled && allowLocalFallback) return;
+    startListingSync();
     try {
       final categoryQuery = FirebaseFirestore.instance
           .collection('listingCategories')
@@ -1224,17 +1331,7 @@ class ClassifiedsStore extends ChangeNotifier {
           }),
         );
 
-      final listingQuery = FirebaseFirestore.instance
-          .collection('listings')
-          .orderBy('createdAt', descending: true)
-          .limit(isOwner ? 200 : 80);
-      final listingSnap = isOwner
-          ? await listingQuery.get()
-          : await listingQuery.where('status', isEqualTo: 'active').get();
-      listings
-        ..removeWhere((item) => item.ownerId != userId)
-        ..addAll(listingSnap.docs.map(listingFromDoc));
-      await loadMyListingsFromFirebase();
+      startListingSync();
 
       final bannerQuery = FirebaseFirestore.instance
           .collection('bannerAds')
@@ -1322,6 +1419,10 @@ class ClassifiedsStore extends ChangeNotifier {
 
   Future<void> loadMyListingsFromFirebase() async {
     if (!isAuthorized) return;
+    if (!allowLocalFallback) {
+      startListingSync();
+      return;
+    }
     try {
       final snap = await FirebaseFirestore.instance
           .collection('listings')
@@ -1513,7 +1614,9 @@ class ClassifiedsStore extends ChangeNotifier {
       condition: conditionFromString('${data['condition'] ?? 'used'}'),
       images: (data['images'] as List? ?? const []).map((e) => '$e').toList(),
       status: statusFromString('${data['status'] ?? 'active'}'),
-      createdAt: createdAt is Timestamp ? createdAt.toDate() : DateTime.now(),
+      createdAt: createdAt is Timestamp
+          ? createdAt.toDate()
+          : DateTime.fromMillisecondsSinceEpoch(0),
       sellerType: '${data['sellerType'] ?? 'private'}' == 'business'
           ? 'business'
           : 'private',
@@ -1950,6 +2053,7 @@ class ClassifiedsStore extends ChangeNotifier {
     if (remoteLanguage == 'kk') language = ClassifiedsLanguage.kk;
     if (remoteLanguage == 'ru') language = ClassifiedsLanguage.ru;
     selectedTab = 0;
+    startListingSync();
     await saveSession();
     if (isOwner) {
       unawaited(loadOwnerData());
@@ -2008,6 +2112,11 @@ class ClassifiedsStore extends ChangeNotifier {
     chats.clear();
     savedSearches.clear();
     if (firebaseAuthUserOrNull() != null) FirebaseAuth.instance.signOut();
+    if (!allowLocalFallback || _publicListingsSubscription != null) {
+      _cancelListingFeeds();
+      listings.removeWhere((item) => item.status != ListingStatus.active);
+      startListingSync();
+    }
     notifyListeners();
   }
 
@@ -2048,11 +2157,16 @@ class ClassifiedsStore extends ChangeNotifier {
     ownerPayments.clear();
     ownerAuditEvents.clear();
     listings.removeWhere((item) => item.ownerId == deletedUserId);
+    if (!allowLocalFallback || _publicListingsSubscription != null) {
+      _cancelListingFeeds();
+      startListingSync();
+    }
     await saveSession();
     notifyListeners();
   }
 
   void selectTab(int value) {
+    cDismissKeyboard();
     selectedTab = value;
     notifyListeners();
   }
@@ -3686,6 +3800,8 @@ class ClassifiedsStore extends ChangeNotifier {
 
   @override
   void dispose() {
+    _listingSyncDisposed = true;
+    _cancelListingFeeds();
     unawaited(fcmTokenRefreshSubscription?.cancel());
     super.dispose();
   }
@@ -3784,6 +3900,7 @@ class _ClassifiedsAppState extends State<ClassifiedsApp> {
   @override
   void dispose() {
     store.removeListener(_changed);
+    if (widget.initialStore == null) store.dispose();
     super.dispose();
   }
 
@@ -3838,7 +3955,11 @@ class _ClassifiedsAppState extends State<ClassifiedsApp> {
               ),
             );
           }
-          final content = child ?? const SizedBox.shrink();
+          final content = GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: cDismissKeyboard,
+            child: child ?? const SizedBox.shrink(),
+          );
           return demoAuthenticationEnabled
               ? Banner(
                   message: 'ТЕСТ',
@@ -4200,11 +4321,24 @@ class ClassifiedsShell extends StatelessWidget {
     final screens = const [
       ClassifiedsHomeScreen(),
       ClassifiedsCatalogScreen(),
-      CreateListingScreen(),
+      CreateListingScreen(embedded: true),
       ChatsScreen(),
       ClassifiedsProfileScreen(),
     ];
+    final titles = [
+      store.tx('Главная', 'Басты'),
+      store.tx('Категории', 'Санаттар'),
+      store.tx('Новое объявление', 'Жаңа хабарландыру'),
+      store.tx('Чаты', 'Чаттар'),
+      store.tx('Профиль', 'Профиль'),
+    ];
     return Scaffold(
+      appBar: store.selectedTab == 0
+          ? null
+          : CSectionAppBar(
+              title: titles[store.selectedTab],
+              onBack: () => store.selectTab(0),
+            ),
       body: screens[store.selectedTab],
       bottomNavigationBar: NavigationBar(
         selectedIndex: store.selectedTab,
@@ -4232,6 +4366,47 @@ class ClassifiedsShell extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+void cDismissKeyboard() {
+  FocusManager.instance.primaryFocus?.unfocus();
+}
+
+class CSectionAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const CSectionAppBar({
+    required this.title,
+    required this.onBack,
+    super.key,
+  });
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ClassifiedsScope.of(context);
+    return AppBar(
+      title: Text(title),
+      leading: BackButton(
+        key: const ValueKey('sectionBackButton'),
+        onPressed: () {
+          cDismissKeyboard();
+          onBack();
+        },
+      ),
+      actions: [
+        if (MediaQuery.viewInsetsOf(context).bottom > 0)
+          TextButton(
+            key: const ValueKey('dismissKeyboardButton'),
+            onPressed: cDismissKeyboard,
+            child: Text(store.tx('Готово', 'Дайын')),
+          ),
+      ],
     );
   }
 }
@@ -5280,9 +5455,19 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final store = ClassifiedsScope.of(context);
-    final listing = store.listings.firstWhere(
-      (item) => item.id == widget.listingId,
-    );
+    final listing = store.listings
+        .where((item) => item.id == widget.listingId)
+        .firstOrNullC;
+    if (listing == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Объявление')),
+        body: const EmptyState(
+          title: 'Объявление недоступно',
+          text: 'Объявление снято с публикации или удалено автором.',
+          icon: Icons.inventory_2_outlined,
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const CBrandHeader(), titleSpacing: 0),
       bottomNavigationBar: SafeArea(
@@ -5515,8 +5700,13 @@ class DetailLine extends StatelessWidget {
 }
 
 class CreateListingScreen extends StatefulWidget {
-  const CreateListingScreen({this.editingListing, super.key});
+  const CreateListingScreen({
+    this.editingListing,
+    this.embedded = false,
+    super.key,
+  });
   final ListingAd? editingListing;
+  final bool embedded;
   @override
   State<CreateListingScreen> createState() => _CreateListingScreenState();
 }
@@ -5644,8 +5834,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         ),
       );
     }
-    return SafeArea(
+    final content = SafeArea(
       child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
         children: [
           const CBrandHeader(),
@@ -5747,6 +5938,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     ),
                 TextField(
                   controller: title,
+                  textInputAction: TextInputAction.next,
+                  onTapOutside: (_) => cDismissKeyboard(),
                   onChanged: (_) => _clearIssue('title'),
                   decoration: InputDecoration(
                     labelText: 'Название',
@@ -5756,6 +5949,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: description,
+                  onTapOutside: (_) => cDismissKeyboard(),
                   minLines: 4,
                   maxLines: 7,
                   onChanged: (_) => _clearIssue('description'),
@@ -5771,6 +5965,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       child: TextField(
                         enabled: !negotiable,
                         controller: price,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => cDismissKeyboard(),
+                        onTapOutside: (_) => cDismissKeyboard(),
                         keyboardType: TextInputType.number,
                         onChanged: (_) => _clearIssue('price'),
                         decoration: InputDecoration(
@@ -5831,6 +6028,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: district,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => cDismissKeyboard(),
+                  onTapOutside: (_) => cDismissKeyboard(),
                   decoration: const InputDecoration(labelText: 'Район/адрес'),
                 ),
                 const SizedBox(height: 14),
@@ -5881,11 +6081,18 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 if (imageUrls.isNotEmpty) ...[
                   ExistingImageStrip(
                     images: imageUrls,
-                    onRemove: (url) => setState(() => imageUrls.remove(url)),
+                    onRemove: saving || pickingImages
+                        ? null
+                        : (url) => setState(() => imageUrls.remove(url)),
                   ),
                   const SizedBox(height: 10),
                 ],
-                ImagePreviewStrip(images: pickedImages),
+                ImagePreviewStrip(
+                  images: pickedImages,
+                  onRemove: saving || pickingImages
+                      ? null
+                      : (image) => setState(() => pickedImages.remove(image)),
+                ),
                 const SizedBox(height: 14),
                 if (moderationMessage.isNotEmpty) ...[
                   RejectionReasonBox(reason: moderationMessage),
@@ -5895,6 +6102,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   onPressed: saving || pickingImages
                       ? null
                       : () async {
+                          cDismissKeyboard();
                           if (title.text.trim().isEmpty ||
                               description.text.trim().isEmpty) {
                             setState(() {
@@ -5975,9 +6183,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                               );
                               return;
                             }
-                            showDialog<void>(
+                            await showDialog<void>(
                               context: context,
-                              builder: (_) => AlertDialog(
+                              barrierDismissible: false,
+                              builder: (dialogContext) => AlertDialog(
                                 title: Text(
                                   editing
                                       ? 'Объявление обновлено'
@@ -5987,12 +6196,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                                 actions: [
                                   TextButton(
                                     onPressed: () =>
-                                        Navigator.of(context).pop(),
+                                        Navigator.of(dialogContext).pop(),
                                     child: const Text('ОК'),
                                   ),
                                 ],
                               ),
                             );
+                            if (!context.mounted) return;
+                            cDismissKeyboard();
                             if (!editing) {
                               title.clear();
                               description.clear();
@@ -6000,6 +6211,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                               attributes.clear();
                               pickedImages.clear();
                               imageUrls.clear();
+                            }
+                            final navigator = Navigator.of(context);
+                            if (widget.embedded) {
+                              store.selectTab(4);
+                              navigator.push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const MyListingsScreen(),
+                                ),
+                              );
+                            } else if (editing && navigator.canPop()) {
+                              navigator.pop();
+                            } else {
+                              navigator.pushReplacement(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const MyListingsScreen(),
+                                ),
+                              );
                             }
                           } catch (error) {
                             if (!context.mounted) return;
@@ -6032,6 +6260,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           ),
         ],
       ),
+    );
+    if (widget.embedded) return content;
+    return Scaffold(
+      appBar: CSectionAppBar(
+        title: editing
+            ? store.tx('Редактировать объявление', 'Хабарландыруды өңдеу')
+            : store.tx('Новое объявление', 'Жаңа хабарландыру'),
+        onBack: () {
+          final navigator = Navigator.of(context);
+          if (navigator.canPop()) {
+            navigator.pop();
+          } else {
+            store.selectTab(0);
+          }
+        },
+      ),
+      body: content,
     );
   }
 }
@@ -6251,8 +6496,14 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
 }
 
 class ImagePreviewStrip extends StatelessWidget {
-  const ImagePreviewStrip({required this.images, super.key});
+  const ImagePreviewStrip({
+    required this.images,
+    this.onRemove,
+    super.key,
+  });
   final List<XFile> images;
+  final ValueChanged<XFile>? onRemove;
+
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) return const SizedBox.shrink();
@@ -6262,21 +6513,62 @@ class ImagePreviewStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: images.length,
         separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) => FutureBuilder<Uint8List>(
-          future: images[index].readAsBytes(),
-          builder: (context, snapshot) => Container(
-            width: 86,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: cSoftBlue,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: snapshot.data == null
-                ? const Center(child: CircularProgressIndicator())
-                : Image.memory(snapshot.data!, fit: BoxFit.cover),
-          ),
-        ),
+        itemBuilder: (context, index) {
+          final image = images[index];
+          return Stack(
+            key: ObjectKey(image),
+            children: [
+              Container(
+                width: 86,
+                height: 86,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: cSoftBlue,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: FutureBuilder<Uint8List>(
+                  future: image.readAsBytes(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Icon(Icons.broken_image_outlined);
+                    }
+                    if (snapshot.data == null) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                  },
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: PhotoRemoveButton(
+                  onPressed: onRemove == null ? null : () => onRemove!(image),
+                ),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class PhotoRemoveButton extends StatelessWidget {
+  const PhotoRemoveButton({required this.onPressed, super.key});
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Удалить фото',
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: cNavy,
+        minimumSize: const Size(44, 44),
+      ),
+      icon: const Icon(Icons.close_rounded, size: 20),
     );
   }
 }
@@ -6288,7 +6580,7 @@ class ExistingImageStrip extends StatelessWidget {
     super.key,
   });
   final List<String> images;
-  final ValueChanged<String> onRemove;
+  final ValueChanged<String>? onRemove;
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -6303,6 +6595,7 @@ class ExistingImageStrip extends StatelessWidget {
             children: [
               Container(
                 width: 86,
+                height: 86,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: cSoftBlue,
@@ -6311,22 +6604,10 @@ class ExistingImageStrip extends StatelessWidget {
                 child: CNetworkOrAssetImage(image, fit: BoxFit.cover),
               ),
               Positioned(
-                right: 4,
-                top: 4,
-                child: InkWell(
-                  onTap: () => onRemove(image),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 16,
-                      color: cNavy,
-                    ),
-                  ),
+                right: 0,
+                top: 0,
+                child: PhotoRemoveButton(
+                  onPressed: onRemove == null ? null : () => onRemove!(image),
                 ),
               ),
             ],

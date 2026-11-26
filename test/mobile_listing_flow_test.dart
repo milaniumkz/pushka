@@ -80,10 +80,17 @@ Future<void> fillAndSubmit(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-void main() {
-  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.iOS);
-  tearDown(() => debugDefaultTargetPlatformOverride = null);
+Future<void> pumpPhotoFrames(WidgetTester tester) async {
+  // Alternate fake frames and real I/O for the platform-picker fixtures.
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+  }
+}
 
+void main() {
   testWidgets('iOS numeric keyboard can be dismissed with Done', (tester) async {
     final store = SubmissionStore();
     await pumpClassifieds(tester, store: store);
@@ -101,7 +108,7 @@ void main() {
       find.descendant(of: field('Цена, ₸'), matching: find.byType(EditableText)),
     );
     expect(editable.focusNode.hasFocus, isFalse);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('iOS form dismisses keyboard on outside tap and drag', (tester) async {
     await pumpClassifieds(tester, store: SubmissionStore());
@@ -115,7 +122,7 @@ void main() {
     await tester.drag(find.byType(ListView).first, const Offset(0, -100));
     await tester.pumpAndSettle();
     expect(tester.testTextInput.isVisible, isFalse);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('main sections have working back arrows', (tester) async {
     final store = SubmissionStore()..selectedTab = 0;
@@ -128,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.selectedTab, 0);
     }
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('editing route has a back arrow to My listings', (tester) async {
     final store = seededTestStore()
@@ -150,7 +157,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MyListingsScreen), findsOneWidget);
     expect(find.byType(CreateListingScreen), findsNothing);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('OK opens My listings and never restores the draft keyboard', (tester) async {
     final store = SubmissionStore();
@@ -172,7 +179,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ClassifiedsProfileScreen), findsOneWidget);
     expect(find.byType(CreateListingScreen), findsNothing);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('rejected submission stays in the form for correction', (tester) async {
     final store = SubmissionStore(resultStatus: ListingStatus.rejected);
@@ -182,7 +189,7 @@ void main() {
     expect(find.byType(CreateListingScreen), findsOneWidget);
     expect(store.selectedTab, 2);
     expect(find.text('Исправьте описание объявления.'), findsWidgets);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('multiple picked photos can be removed and replaced at the limit', (tester) async {
     late Directory directory;
@@ -213,45 +220,33 @@ void main() {
     await pumpClassifieds(tester, store: SubmissionStore());
     var button = find.widgetWithText(OutlinedButton, 'Фото (0/8)');
     await tester.ensureVisible(button);
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     await tester.tap(button);
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     expect(pickerCalls, 1);
     expect(tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images.length, 8);
     expect(tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Фото (8/8)')).onPressed, isNull);
 
     await tester.ensureVisible(find.byType(ImagePreviewStrip));
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     await tester.tap(find.descendant(
       of: find.byType(ImagePreviewStrip),
       matching: find.byType(PhotoRemoveButton),
     ).first);
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     expect(tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images.length, 7);
     button = find.widgetWithText(OutlinedButton, 'Фото (7/8)');
     await tester.ensureVisible(button);
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     await tester.tap(button);
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pumpAndSettle();
+    await pumpPhotoFrames(tester);
     final selected = tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images;
     expect(pickerCalls, 2);
     expect(selected.length, 8);
     expect(selected.any((image) => image.path == paths.first), isFalse);
     expect(selected.any((image) => image.path == paths.last), isTrue);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('existing photo removal is saved only on confirmation', (tester) async {
     final store = seededTestStore()
@@ -280,7 +275,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(listing.images, isEmpty);
     expect(find.text('Объявление обновлено'), findsOneWidget);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   test('two devices remove archived public listing without refresh and preserve its date', () async {
     final public = StreamController<List<ListingAd>>.broadcast();
@@ -386,5 +381,5 @@ void main() {
     expect(find.text('Объявление недоступно'), findsOneWidget);
     expect(find.text('Позвонить'), findsNothing);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 }

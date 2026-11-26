@@ -5448,7 +5448,10 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     super.didChangeDependencies();
     if (!tracked) {
       tracked = true;
-      ClassifiedsScope.of(context).trackListingView(widget.listingId);
+      final store = ClassifiedsScope.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(store.trackListingView(widget.listingId));
+      });
     }
   }
 
@@ -6220,7 +6223,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                                   builder: (_) => const MyListingsScreen(),
                                 ),
                               );
-                            } else if (editing && navigator.canPop()) {
+                            } else if (navigator.canPop()) {
                               navigator.pop();
                             } else {
                               navigator.pushReplacement(

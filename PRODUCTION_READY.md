@@ -5,7 +5,7 @@
 - Integrated `fix/ios-keyboard-and-navigation`: mobile keyboard dismissal, back navigation, removing picked photos, post-save navigation, and live catalog/detail synchronization with Firestore.
 - All 30 Flutter tests passed; static analysis found no issues. Signed Android AAB and iOS IPA built successfully. IPA version, build number and bundle identifier verified before upload.
 - Google Play production release 1.0.4 (8) is under review, with full rollout after approval. Local evidence: `output/play-1.0.4-submitted.jpg`.
-- Apple accepted build 8, delivery `4760fd1f-fd91-46c8-a12b-54b3628b87d8`; processing is in progress. Version 1.0.4 metadata and reviewer notes are saved.
+- Apple accepted build 8, delivery `4760fd1f-fd91-46c8-a12b-54b3628b87d8`. App Store Connect confirms version 1.0.4 (8) is Waiting for Review, submission `f5f94ec8-cee4-4768-a9a8-3812f8a68a08`. Automatic release after approval is enabled. Local evidence: `output/apple-1.0.4-submitted.jpg`.
 
 ## 1.0.3 (7), 25 November 2026
 

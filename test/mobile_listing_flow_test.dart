@@ -185,17 +185,20 @@ void main() {
   });
 
   testWidgets('multiple picked photos can be removed and replaced at the limit', (tester) async {
-    final directory = await Directory.systemTemp.createTemp('pushka-photo-test');
-    addTearDown(() => directory.delete(recursive: true));
+    late Directory directory;
     final png = base64Decode(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ8sAAAAASUVORK5CYII=',
     );
     final paths = <String>[];
-    for (var i = 0; i < 9; i++) {
-      final file = File('${directory.path}/photo-$i.png');
-      await file.writeAsBytes(png);
-      paths.add(file.path);
-    }
+    await tester.runAsync(() async {
+      directory = await Directory.systemTemp.createTemp('pushka-photo-test');
+      for (var i = 0; i < 9; i++) {
+        final file = File('${directory.path}/photo-$i.png');
+        await file.writeAsBytes(png);
+        paths.add(file.path);
+      }
+    });
+    addTearDown(() => directory.delete(recursive: true));
     final selections = [paths.take(8).toList(), [paths.last]];
     var pickerCalls = 0;
     const channel = MethodChannel('plugins.flutter.io/image_picker');
@@ -210,8 +213,12 @@ void main() {
     await pumpClassifieds(tester, store: SubmissionStore());
     var button = find.widgetWithText(OutlinedButton, 'Фото (0/8)');
     await tester.ensureVisible(button);
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     await tester.tap(button);
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     expect(pickerCalls, 1);
     expect(tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images.length, 8);
@@ -219,17 +226,25 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Фото (8/8)')).onPressed, isNull);
 
     await tester.ensureVisible(find.byType(ImagePreviewStrip));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     await tester.tap(find.descendant(
       of: find.byType(ImagePreviewStrip),
       matching: find.byType(PhotoRemoveButton),
     ).first);
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     expect(tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images.length, 7);
     button = find.widgetWithText(OutlinedButton, 'Фото (7/8)');
     await tester.ensureVisible(button);
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     await tester.tap(button);
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
     final selected = tester.widget<ImagePreviewStrip>(find.byType(ImagePreviewStrip)).images;
     expect(pickerCalls, 2);

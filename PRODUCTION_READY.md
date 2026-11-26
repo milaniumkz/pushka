@@ -1,5 +1,12 @@
 # PUSHKA Production Checklist
 
+## 1.0.4 (8), 26 November 2026
+
+- Integrated `fix/ios-keyboard-and-navigation`: mobile keyboard dismissal, back navigation, removing picked photos, post-save navigation, and live catalog/detail synchronization with Firestore.
+- All 30 Flutter tests passed; static analysis found no issues. Signed Android AAB and iOS IPA built successfully. IPA version, build number and bundle identifier verified before upload.
+- Google Play production release 1.0.4 (8) is under review, with full rollout after approval. Local evidence: `output/play-1.0.4-submitted.jpg`.
+- Apple accepted build 8, delivery `4760fd1f-fd91-46c8-a12b-54b3628b87d8`; processing is in progress. Version 1.0.4 metadata and reviewer notes are saved.
+
 ## 1.0.3 (7), 25 November 2026
 
 - Integrated `fix/listing-category-and-multiple-photos` into main. The listing gallery supports one multi-image selection, with an eight-photo total limit. Valid category IDs are checked against the catalog rather than rejected by incidental text keywords.
